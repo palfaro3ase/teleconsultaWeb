@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agendar Teleconsulta</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
         .form-group { margin-bottom: 1rem; }
         label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
         input, select { width: 100%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
@@ -16,7 +16,7 @@
         .success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
     </style>
-    <!-- 1. Cargar la librería de Supabase (esto faltaba o estaba en el orden incorrecto) -->
+    <!-- Librería de Supabase desde CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -51,13 +51,12 @@
     <div id="message" class="message"></div>
 
     <script>
-        // 2. Inicializar Supabase con tus credenciales reales
+        // 1. CONFIGURACIÓN: Reemplaza la clave de abajo con tu clave ANON real
         const SUPABASE_URL = "https://rspbmkyhtybxbxhchzry.supabase.co";
-        // ⚠️ REEMPLAZA "TU_ANON_KEY_AQUI" CON TU CLAVE ANON REAL (empieza con eyJ...)
-        const SUPABASE_ANON_KEY = "TU_ANON_KEY_AQUI"; 
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcGJta3lodHlieGJ4aGNoenJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNDgxMDQsImV4cCI6MjEwNDkyNDEwNH0.h2urzneJLrLMnG-rB_aovQV3zwitc7vtbZGhltKqv50";
 
-        // Crear el cliente de Supabase (ahora 'supabase' estará definido)
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // 2. Inicializar cliente (usamos window.supabase para evitar conflictos de declaración)
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const form = document.getElementById('consultaForm');
         const doctorSelect = document.getElementById('doctorId');
@@ -70,10 +69,10 @@
             messageDiv.style.display = 'block';
         }
 
-        // 3. Cargar médicos activos al iniciar
+        // 3. Cargar médicos activos
         async function loadDoctors() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('doctors')
                     .select('id, full_name, specialty')
                     .eq('active', true);
@@ -93,39 +92,30 @@
                 }
             } catch (err) {
                 console.error("Error cargando médicos:", err);
-                showMessage("Error al cargar la lista de médicos. Revisa la consola (F12).", true);
+                showMessage("Error al cargar médicos. Revisa la consola (F12).", true);
             }
         }
 
-        // 4. Manejar el envío del formulario
+        // 4. Enviar formulario
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             submitBtn.disabled = true;
             submitBtn.textContent = "Procesando...";
             messageDiv.style.display = 'none';
 
-            const patientName = document.getElementById('patientName').value;
-            const patientPhone = document.getElementById('patientPhone').value;
-            const doctorId = document.getElementById('doctorId').value;
-            const appointmentDate = document.getElementById('appointmentDate').value;
-
-            // Generar un ID único para la sala de Jitsi
             const jitsiRoom = `teleconsulta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
             try {
-                // Insertar la cita en la base de datos
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('appointments')
-                    .insert([
-                        {
-                            patient_name: patientName,
-                            patient_phone: patientPhone,
-                            doctor_id: doctorId,
-                            scheduled_at: appointmentDate,
-                            jitsi_room: jitsiRoom,
-                            status: 'agendada'
-                        }
-                    ])
+                    .insert([{
+                        patient_name: document.getElementById('patientName').value,
+                        patient_phone: document.getElementById('patientPhone').value,
+                        doctor_id: document.getElementById('doctorId').value,
+                        scheduled_at: document.getElementById('appointmentDate').value,
+                        jitsi_room: jitsiRoom,
+                        status: 'agendada'
+                    }])
                     .select()
                     .single();
 
@@ -133,17 +123,17 @@
 
                 showMessage("¡Cita agendada con éxito! El médico recibirá la notificación en Telegram.");
                 form.reset();
-                loadDoctors(); // Recargar por si acaso
+                loadDoctors();
             } catch (err) {
                 console.error("Error al agendar:", err);
-                showMessage(`Error al agendar la cita: ${err.message}`, true);
+                showMessage(`Error: ${err.message}`, true);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = "Confirmar cita";
             }
         });
 
-        // Iniciar la carga de médicos
+        // Iniciar
         loadDoctors();
     </script>
 </body>
