@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Teleconsulta — Agendar cita</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.45.4/supabase.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; }
+  label { display: block; margin-top: 14px; font-size: 0.9rem; font-weight: 600; }
+  input, select { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+  button { margin-top: 20px; width: 100%; padding: 10px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #result { margin-top: 20px; padding: 12px; border-radius: 6px; display: none; }
+  #result.ok { background: #e6f4ea; display: block; }
+  #result.err { background: #fce8e6; display: block; }
+  #result a { font-weight: 600; }
+  .consent { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; }
+  .consent input { width: auto; }
+</style>
+</head>
+<body>
+  <h1>Agendar teleconsulta</h1>
+  <form id="bookingForm">
+    <label>Nombre completo
+      <input type="text" id="fullName" required />
+    </label>
+    <label>Teléfono
+      <input type="tel" id="phone" required />
+    </label>
+    <label>Médico
+      <select id="doctorId" required></select>
+    </label>
+    <label>Fecha y hora
+      <input type="datetime-local" id="scheduledAt" required />
+    </label>
+    <div class="consent">
+      <input type="checkbox" id="consent" required />
+      <label style="margin:0; font-weight:400;">Doy mi consentimiento informado para recibir atención por teleconsulta y el tratamiento de mis datos de salud conforme a la Ley 29733.</label>
+    </div>
+    <button type="submit" id="submitBtn">Confirmar cita</button>
+  </form>
+  <div id="result"></div>
+
+<script>
+  const SUPABASE_URL = "https://rspbmkyhtybxbxhchzry.supabase.co";
+  const SUPABASE_ANON_KEY = "TU-ANON-KEY";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcGJta3lodHlieGJ4aGNoenJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNDgxMDQsImV4cCI6MjEwNDkyNDEwNH0.h2urzneJLrLMnG-rB_aovQV3zwitc7vtbZGhltKqv50");
+
+  async function loadDoctors() {
+    const { data, error } = await supabaseClient.from("doctors").select("id, full_name, specialty").eq("active", true);
+    const select = document.getElementById("doctorId");
+    if (error) { console.error(error); showResult(false, "No se pudo cargar la lista de médicos: " + error.message); return; }
+    data.forEach(d => {
+      const opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = `${d.full_name} — ${d.specialty}`;
+      select.appendChild(opt);
+    });
+  }
+  loadDoctors();
+
+  document.getElementById("bookingForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Agendando...";
+
+    const payload = {
+      full_name: document.getElementById("fullName").value,
+      phone: document.getElementById("phone").value,
+      doctor_id: document.getElementById("doctorId").value,
+      scheduled_at: document.getElementById("scheduledAt").value,
+      consent: document.getElementById("consent").checked,
+    };
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-appointment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "apikey": SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        showResult(false, "Error: " + data.error);
+      } else {
+        showResult(true, `Cita confirmada. Enlace de videollamada: <a href="${data.room_url}" target="_blank">${data.room_url}</a>`);
+      }
+    } catch (err) {
+      showResult(false, "Error de conexión: " + err.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Confirmar cita";
+    }
+  });
+
+  function showResult(ok, message) {
+    const el = document.getElementById("result");
+    el.className = ok ? "ok" : "err";
+    el.style.display = "block";
+    el.innerHTML = message;
+  }
+</script>
+</body>
+</html>
