@@ -27,7 +27,6 @@
 <body>
     <h1>Agendar Teleconsulta</h1>
     
-    <!-- Paso 1: Registro de Paciente -->
     <div id="step1" class="step active">
         <h2>Paso 1: Registro de Paciente</h2>
         <form id="patientForm">
@@ -53,7 +52,6 @@
         </form>
     </div>
 
-    <!-- Paso 2: Agendar Cita -->
     <div id="step2" class="step">
         <h2>Paso 2: Agendar Cita</h2>
         <form id="appointmentForm">
@@ -71,7 +69,6 @@
         </form>
     </div>
 
-    <!-- Paso 3: Confirmación con enlace de Jitsi -->
     <div id="step3" class="step">
         <h2>✅ Cita Confirmada</h2>
         <p>Tu teleconsulta ha sido agendada exitosamente. El médico ha sido notificado.</p>
@@ -84,9 +81,9 @@
 
         <p style="margin-top: 1.5rem; font-size: 0.9rem; color: #6b7280;">
             <strong>Instrucciones:</strong><br>
-            1. Guarda este enlace (puedes enviarlo por WhatsApp o email a tu correo).<br>
+            1. Guarda este enlace.<br>
             2. A la hora programada, haz clic en el enlace para entrar a la videollamada.<br>
-            3. Permite el acceso a tu cámara y micrófono cuando el navegador lo solicite.
+            3. Permite el acceso a tu cámara y micrófono.
         </p>
 
         <button onclick="location.reload()">Agendar otra consulta</button>
@@ -99,7 +96,6 @@
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcGJta3lodHlieGJ4aGNoenJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNDgxMDQsImV4cCI6MjEwNDkyNDEwNH0.h2urzneJLrLMnG-rB_aovQV3zwitc7vtbZGhltKqv50";
 
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
         let currentPatientId = null;
 
         const step1 = document.getElementById('step1');
@@ -124,7 +120,6 @@
             });
         }
 
-        // Paso 1: Registrar paciente
         patientForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             messageDiv.style.display = 'none';
@@ -154,7 +149,6 @@
             }
         });
 
-        // Cargar médicos
         async function loadDoctors() {
             try {
                 const { data, error } = await supabaseClient
@@ -179,7 +173,6 @@
             }
         }
 
-        // Paso 2: Agendar cita
         appointmentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             submitBtn.disabled = true;
@@ -190,7 +183,8 @@
             const jitsiUrl = `https://meet.jit.si/${jitsiRoom}`;
 
             try {
-                const { data, error } = await supabaseClient
+                // 1. Insertar la cita
+                const { data: appointment, error: apptError } = await supabaseClient
                     .from('appointments')
                     .insert([{
                         patient_id: currentPatientId,
@@ -202,9 +196,47 @@
                     .select()
                     .single();
 
-                if (error) throw error;
+                if (apptError) throw apptError;
 
-                // Mostrar pantalla de confirmación con el enlace
+                // 2. Obtener datos del médico para notificar
+                const { data: doctor } = await supabaseClient
+                    .from('doctors')
+                    .select('telegram_chat_id')
+                    .eq('id', appointment.doctor_id)
+                    .single();
+
+                // 3. Obtener datos del paciente
+                const { data: patient } = await supabaseClient
+                    .from('patients')
+                    .select('full_name, phone')
+                    .eq('id', currentPatientId)
+                    .single();
+
+                // 4. Notificar al médico vía Edge Function (ahora con los datos correctos)
+                if (doctor?.telegram_chat_id) {
+                    const when = new Date(appointment.scheduled_at).toLocaleString("es-PE", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                    });
+
+                    const message = `🩺 <b>Nueva teleconsulta agendada</b>\n` +
+                        `👤 Paciente: ${patient.full_name}\n` +
+                        `📞 Teléfono: ${patient.phone}\n` +
+                        `📅 Fecha: ${when}\n` +
+                        `🔗 Sala: ${jitsiUrl}`;
+
+                    // Llamar directamente a la Edge Function desde el frontend
+                    await fetch('https://rspbmkyhtybxbxhchzry.supabase.co/functions/v1/telegram-notify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: doctor.telegram_chat_id,
+                            message: message
+                        })
+                    });
+                }
+
+                // 5. Mostrar confirmación con el MISMO enlace
                 document.getElementById('jitsiLink').href = jitsiUrl;
                 document.getElementById('jitsiLink').textContent = jitsiUrl;
                 
