@@ -1,111 +1,150 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<title>Teleconsulta — Agendar cita</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.45.4/supabase.min.js"></script>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
-  h1 { font-size: 1.3rem; }
-  label { display: block; margin-top: 14px; font-size: 0.9rem; font-weight: 600; }
-  input, select { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-  button { margin-top: 20px; width: 100%; padding: 10px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  #result { margin-top: 20px; padding: 12px; border-radius: 6px; display: none; }
-  #result.ok { background: #e6f4ea; display: block; }
-  #result.err { background: #fce8e6; display: block; }
-  #result a { font-weight: 600; }
-  .consent { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; }
-  .consent input { width: auto; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendar Teleconsulta</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        input, select { width: 100%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; padding: 0.75rem; background-color: #2563eb; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: #93c5fd; cursor: not-allowed; }
+        .message { margin-top: 1rem; padding: 1rem; border-radius: 6px; display: none; }
+        .success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    </style>
+    <!-- 1. Cargar la librería de Supabase (esto faltaba o estaba en el orden incorrecto) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <h1>Agendar teleconsulta</h1>
-  <form id="bookingForm">
-    <label>Nombre completo
-      <input type="text" id="fullName" required />
-    </label>
-    <label>Teléfono
-      <input type="tel" id="phone" required />
-    </label>
-    <label>Médico
-      <select id="doctorId" required></select>
-    </label>
-    <label>Fecha y hora
-      <input type="datetime-local" id="scheduledAt" required />
-    </label>
-    <div class="consent">
-      <input type="checkbox" id="consent" required />
-      <label style="margin:0; font-weight:400;">Doy mi consentimiento informado para recibir atención por teleconsulta y el tratamiento de mis datos de salud conforme a la Ley 29733.</label>
-    </div>
-    <button type="submit" id="submitBtn">Confirmar cita</button>
-  </form>
-  <div id="result"></div>
+    <h1>Agendar Teleconsulta</h1>
+    <form id="consultaForm">
+        <div class="form-group">
+            <label for="patientName">Nombre completo</label>
+            <input type="text" id="patientName" required>
+        </div>
+        <div class="form-group">
+            <label for="patientPhone">Teléfono</label>
+            <input type="tel" id="patientPhone" required>
+        </div>
+        <div class="form-group">
+            <label for="doctorId">Médico</label>
+            <select id="doctorId" required>
+                <option value="">Cargando médicos...</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="appointmentDate">Fecha y hora</label>
+            <input type="datetime-local" id="appointmentDate" required>
+        </div>
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                <input type="checkbox" id="consent" required style="width: auto;">
+                Doy mi consentimiento informado para recibir atención por teleconsulta y el tratamiento de mis datos de salud conforme a la Ley 29733.
+            </label>
+        </div>
+        <button type="submit" id="submitBtn">Confirmar cita</button>
+    </form>
+    <div id="message" class="message"></div>
 
-<script>
-  const SUPABASE_URL = "https://rspbmkyhtybxbxhchzry.supabase.co";
-  const SUPABASE_ANON_KEY = "TU-ANON-KEY";
-  const supabaseClient = supabase.createClient(SUPABASE_URL, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcGJta3lodHlieGJ4aGNoenJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNDgxMDQsImV4cCI6MjEwNDkyNDEwNH0.h2urzneJLrLMnG-rB_aovQV3zwitc7vtbZGhltKqv50");
+    <script>
+        // 2. Inicializar Supabase con tus credenciales reales
+        const SUPABASE_URL = "https://rspbmkyhtybxbxhchzry.supabase.co";
+        // ⚠️ REEMPLAZA "TU_ANON_KEY_AQUI" CON TU CLAVE ANON REAL (empieza con eyJ...)
+        const SUPABASE_ANON_KEY = "TU_ANON_KEY_AQUI"; 
 
-  async function loadDoctors() {
-    const { data, error } = await supabaseClient.from("doctors").select("id, full_name, specialty").eq("active", true);
-    const select = document.getElementById("doctorId");
-    if (error) { console.error(error); showResult(false, "No se pudo cargar la lista de médicos: " + error.message); return; }
-    data.forEach(d => {
-      const opt = document.createElement("option");
-      opt.value = d.id;
-      opt.textContent = `${d.full_name} — ${d.specialty}`;
-      select.appendChild(opt);
-    });
-  }
-  loadDoctors();
+        // Crear el cliente de Supabase (ahora 'supabase' estará definido)
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  document.getElementById("bookingForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const submitBtn = document.getElementById("submitBtn");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Agendando...";
+        const form = document.getElementById('consultaForm');
+        const doctorSelect = document.getElementById('doctorId');
+        const messageDiv = document.getElementById('message');
+        const submitBtn = document.getElementById('submitBtn');
 
-    const payload = {
-      full_name: document.getElementById("fullName").value,
-      phone: document.getElementById("phone").value,
-      doctor_id: document.getElementById("doctorId").value,
-      scheduled_at: document.getElementById("scheduledAt").value,
-      consent: document.getElementById("consent").checked,
-    };
+        function showMessage(text, isError = false) {
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${isError ? 'error' : 'success'}`;
+            messageDiv.style.display = 'block';
+        }
 
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-appointment`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-          "apikey": SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
+        // 3. Cargar médicos activos al iniciar
+        async function loadDoctors() {
+            try {
+                const { data, error } = await supabase
+                    .from('doctors')
+                    .select('id, full_name, specialty')
+                    .eq('active', true);
 
-      if (!data.ok) {
-        showResult(false, "Error: " + data.error);
-      } else {
-        showResult(true, `Cita confirmada. Enlace de videollamada: <a href="${data.room_url}" target="_blank">${data.room_url}</a>`);
-      }
-    } catch (err) {
-      showResult(false, "Error de conexión: " + err.message);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Confirmar cita";
-    }
-  });
+                if (error) throw error;
 
-  function showResult(ok, message) {
-    const el = document.getElementById("result");
-    el.className = ok ? "ok" : "err";
-    el.style.display = "block";
-    el.innerHTML = message;
-  }
-</script>
+                doctorSelect.innerHTML = '<option value="">Selecciona un médico</option>';
+                if (data && data.length > 0) {
+                    data.forEach(doc => {
+                        const option = document.createElement('option');
+                        option.value = doc.id;
+                        option.textContent = `${doc.full_name} - ${doc.specialty}`;
+                        doctorSelect.appendChild(option);
+                    });
+                } else {
+                    doctorSelect.innerHTML = '<option value="">No hay médicos disponibles</option>';
+                }
+            } catch (err) {
+                console.error("Error cargando médicos:", err);
+                showMessage("Error al cargar la lista de médicos. Revisa la consola (F12).", true);
+            }
+        }
+
+        // 4. Manejar el envío del formulario
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Procesando...";
+            messageDiv.style.display = 'none';
+
+            const patientName = document.getElementById('patientName').value;
+            const patientPhone = document.getElementById('patientPhone').value;
+            const doctorId = document.getElementById('doctorId').value;
+            const appointmentDate = document.getElementById('appointmentDate').value;
+
+            // Generar un ID único para la sala de Jitsi
+            const jitsiRoom = `teleconsulta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+            try {
+                // Insertar la cita en la base de datos
+                const { data, error } = await supabase
+                    .from('appointments')
+                    .insert([
+                        {
+                            patient_name: patientName,
+                            patient_phone: patientPhone,
+                            doctor_id: doctorId,
+                            scheduled_at: appointmentDate,
+                            jitsi_room: jitsiRoom,
+                            status: 'agendada'
+                        }
+                    ])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                showMessage("¡Cita agendada con éxito! El médico recibirá la notificación en Telegram.");
+                form.reset();
+                loadDoctors(); // Recargar por si acaso
+            } catch (err) {
+                console.error("Error al agendar:", err);
+                showMessage(`Error al agendar la cita: ${err.message}`, true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Confirmar cita";
+            }
+        });
+
+        // Iniciar la carga de médicos
+        loadDoctors();
+    </script>
 </body>
 </html>
