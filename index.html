@@ -17,6 +17,10 @@
         .error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
         .step { display: none; }
         .step.active { display: block; }
+        .jitsi-link { background-color: #dbeafe; border: 2px solid #3b82f6; border-radius: 8px; padding: 1.5rem; margin-top: 1rem; text-align: center; }
+        .jitsi-link a { display: block; font-size: 1.2rem; font-weight: 700; color: #1e40af; word-break: break-all; margin: 1rem 0; }
+        .copy-btn { background-color: #10b981; margin-top: 0.5rem; }
+        .copy-btn:hover { background-color: #059669; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -67,11 +71,32 @@
         </form>
     </div>
 
+    <!-- Paso 3: Confirmación con enlace de Jitsi -->
+    <div id="step3" class="step">
+        <h2>✅ Cita Confirmada</h2>
+        <p>Tu teleconsulta ha sido agendada exitosamente. El médico ha sido notificado.</p>
+        
+        <div class="jitsi-link">
+            <p><strong>Enlace de la Videollamada:</strong></p>
+            <a id="jitsiLink" href="#" target="_blank">Cargando...</a>
+            <button class="copy-btn" onclick="copyLink()">📋 Copiar enlace</button>
+        </div>
+
+        <p style="margin-top: 1.5rem; font-size: 0.9rem; color: #6b7280;">
+            <strong>Instrucciones:</strong><br>
+            1. Guarda este enlace (puedes enviarlo por WhatsApp o email a tu correo).<br>
+            2. A la hora programada, haz clic en el enlace para entrar a la videollamada.<br>
+            3. Permite el acceso a tu cámara y micrófono cuando el navegador lo solicite.
+        </p>
+
+        <button onclick="location.reload()">Agendar otra consulta</button>
+    </div>
+
     <div id="message" class="message"></div>
 
     <script>
         const SUPABASE_URL = "https://rspbmkyhtybxbxhchzry.supabase.co";
-        const SUPABASE_ANON_KEY = "PEGA_AQUI_TU_CLAVE_ANON_REAL"; // ⚠️ REEMPLAZAR
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcGJta3lodHlieGJ4aGNoenJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNDgxMDQsImV4cCI6MjEwNDkyNDEwNH0.h2urzneJLrLMnG-rB_aovQV3zwitc7vtbZGhltKqv50";
 
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -79,6 +104,7 @@
 
         const step1 = document.getElementById('step1');
         const step2 = document.getElementById('step2');
+        const step3 = document.getElementById('step3');
         const patientForm = document.getElementById('patientForm');
         const appointmentForm = document.getElementById('appointmentForm');
         const doctorSelect = document.getElementById('doctorId');
@@ -89,6 +115,13 @@
             messageDiv.textContent = text;
             messageDiv.className = `message ${isError ? 'error' : 'success'}`;
             messageDiv.style.display = 'block';
+        }
+
+        function copyLink() {
+            const link = document.getElementById('jitsiLink').href;
+            navigator.clipboard.writeText(link).then(() => {
+                alert('Enlace copiado al portapapeles');
+            });
         }
 
         // Paso 1: Registrar paciente
@@ -154,6 +187,7 @@
             messageDiv.style.display = 'none';
 
             const jitsiRoom = `teleconsulta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const jitsiUrl = `https://meet.jit.si/${jitsiRoom}`;
 
             try {
                 const { data, error } = await supabaseClient
@@ -170,8 +204,13 @@
 
                 if (error) throw error;
 
-                showMessage("¡Cita agendada con éxito! El médico recibirá la notificación en Telegram.");
-                appointmentForm.reset();
+                // Mostrar pantalla de confirmación con el enlace
+                document.getElementById('jitsiLink').href = jitsiUrl;
+                document.getElementById('jitsiLink').textContent = jitsiUrl;
+                
+                step2.classList.remove('active');
+                step3.classList.add('active');
+                
             } catch (err) {
                 console.error("Error al agendar:", err);
                 showMessage(`Error: ${err.message}`, true);
